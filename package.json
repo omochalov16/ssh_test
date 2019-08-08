@@ -15,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/omochalov16/ssh_test/issues"
   },
-  "homepage": "https://github.com/omochalov16/ssh_test#readme"
+  "homepage": "https://github.com/omochalov16/ssh_test#readme",
+  "dependencies": {
+    "ssh2": "^0.8.5"
+  }
 }
