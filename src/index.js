@@ -138,6 +138,7 @@ const putFile = async (shell, command) => {
   });
 
   sigint.on('keyboard', () => {
+    Logger.info('Type "exit" to stop ssh client');
     shell.write('\x03');
   });
 
