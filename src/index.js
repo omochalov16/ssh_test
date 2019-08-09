@@ -1,9 +1,12 @@
-const { Client } = require('ssh2');
 const Logger = require('js-logger');
+const path = require('path');
 const args = require('yargs').argv;
+const SSH2Promise = require('ssh2-promise');
 
 const validateConnectionString = require('./validateConnectionString');
+
 const parseConnectionString = require('./parseConnectionString');
+const parseGetCommand = require('./parseGetCommand');
 
 const commandTypeResolver = require('./commandTypeResolver');
 const commandTypes = require('./commandTypes');
@@ -20,37 +23,77 @@ connectionInfo.port = args.P || 22;
 
 Logger.useDefaults();
 
-const conn = new Client();
+const conn = new SSH2Promise(connectionInfo);
 
-conn.on('ready', () => {
-  Logger.info('Client :: ready');
+const setupShell = connection => connection.shell();
 
-  conn.shell((err, stream) => {
-    if (err) throw err;
-    stream.on('close', () => {
-      Logger.info('Stream :: close');
-      conn.end();
-      process.exit();
-    });
+const setShellModeToStandart = (shell) => {
+  shell.removeAllListeners();
 
-    stream.on('data', (data) => {
-      Logger.info(`${data}`);
-    });
-
-    process.stdin.on('data', (command) => {
-      const commandType = commandTypeResolver(command);
-
-      switch (commandType) {
-        case commandTypes.GET_FILE:
-          break;
-        case commandTypes.SIMPLE:
-          stream.write(command);
-          break;
-        default:
-          throw new Error('Unexepected command');
-      }
-    });
+  shell.on('data', (data) => {
+    process.stdout.write(`${data}`);
   });
-});
 
-conn.connect(connectionInfo);
+  shell.on('close', () => {
+    Logger.info('Stream :: close');
+    conn.end();
+    process.exit();
+  });
+};
+
+const getFile = async (shell, command) => {
+  const filename = parseGetCommand(command).fileName;
+
+  process.stdin.pause();
+  shell.removeAllListeners();
+
+  shell.on('data', async (directoryResponse) => {
+    const directory = directoryResponse.toString().split(/\r?\n|\r/)[0];
+    if (directory[0] !== '/') {
+      return;
+    }
+
+    const sftp = await conn.sftp();
+
+    const moveFrom = `${directory}/${filename}`;
+    const moveTo = `${__dirname}/../uploaded/${filename}`;
+
+    Logger.info(`Upload file from ${moveFrom} to ${path.resolve(moveTo)}`);
+
+    try {
+      await sftp.fastGet(moveFrom, moveTo);
+      Logger.info('Succesfully uploaded');
+    } catch (err) {
+      Logger.info(err);
+    }
+
+    setShellModeToStandart(shell);
+    process.stdin.resume();
+  });
+
+  shell.write('pwd\n');
+};
+
+(async () => {
+  await conn.connect();
+
+  Logger.info('Client :: ready');
+  const shell = await setupShell(conn);
+
+  setShellModeToStandart(shell);
+
+  process.stdin.on('data', async (command) => {
+    const commandType = commandTypeResolver(command);
+
+    switch (commandType) {
+      case commandTypes.GET_FILE:
+        await getFile(shell, command);
+        break;
+      case commandTypes.SIMPLE:
+        shell.write(command);
+        break;
+      default:
+        throw new Error('Unexepected command');
+    }
+  });
+})();
