@@ -18,6 +18,7 @@
   },
   "homepage": "https://github.com/omochalov16/ssh_test#readme",
   "dependencies": {
+    "fs-extra": "^8.1.0",
     "js-logger": "^1.6.0",
     "ssh2": "^0.8.5",
     "ssh2-promise": "^0.1.5",

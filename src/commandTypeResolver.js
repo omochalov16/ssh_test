@@ -5,8 +5,15 @@ const identify = (command) => {
   if (typeof command !== 'string') commandString = command.toString();
 
   const getCommandRegexp = /^(get)[ ].+$/s;
-  if (commandString.match(getCommandRegexp)) return commandTypes.GET_FILE;
-  return commandTypes.SIMPLE;
+  const putCommandRegexp = /^(put)[ ].+$/s;
+  switch (true) {
+    case !!commandString.match(getCommandRegexp):
+      return commandTypes.GET_FILE;
+    case !!commandString.match(putCommandRegexp):
+      return commandTypes.PUT_FILE;
+    default:
+      return commandTypes.SIMPLE;
+  }
 };
 
 module.exports = identify;

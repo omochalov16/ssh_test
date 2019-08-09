@@ -2,11 +2,13 @@ const Logger = require('js-logger');
 const path = require('path');
 const args = require('yargs').argv;
 const SSH2Promise = require('ssh2-promise');
+const fs = require('fs-extra');
 
 const validateConnectionString = require('./validateConnectionString');
 
 const parseConnectionString = require('./parseConnectionString');
 const parseGetCommand = require('./parseGetCommand');
+const parsePutCommand = require('./parsePutCommand');
 
 const commandTypeResolver = require('./commandTypeResolver');
 const commandTypes = require('./commandTypes');
@@ -36,40 +38,74 @@ const setShellModeToStandart = (shell) => {
 
   shell.on('close', () => {
     Logger.info('Stream :: close');
-    conn.end();
     process.exit();
   });
 };
+
+const getCurrentDirectory = async shell => new Promise((res) => {
+  shell.removeAllListeners();
+  shell.on('data', (directoryResponse) => {
+    const directory = directoryResponse.toString().split(/\r?\n|\r/)[0];
+    if (directory[0] === '/') {
+      setShellModeToStandart(shell);
+      res(directory);
+    }
+  });
+
+  shell.write('pwd\n');
+});
 
 const getFile = async (shell, command) => {
   const filename = parseGetCommand(command).fileName;
 
   process.stdin.pause();
-  shell.removeAllListeners();
 
-  shell.on('data', async (directoryResponse) => {
-    const directory = directoryResponse.toString().split(/\r?\n|\r/)[0];
-    if (directory[0] !== '/') {
-      return;
-    }
+  const directory = await getCurrentDirectory(shell);
 
-    const sftp = await conn.sftp();
+  const sftp = await conn.sftp();
 
-    const moveFrom = `${directory}/${filename}`;
-    const moveTo = `${__dirname}/../uploaded/${filename}`;
+  const pathToLocalFile = `${directory}/${filename}`;
+  const pathToRemoteFile = `${__dirname}/../uploaded/${filename}`;
 
-    Logger.info(`Upload file from ${moveFrom} to ${path.resolve(moveTo)}`);
+  Logger.info(`Upload file from ${pathToLocalFile} to ${path.resolve(pathToRemoteFile)}`);
 
-    try {
-      await sftp.fastGet(moveFrom, moveTo);
-      Logger.info('Succesfully uploaded');
-    } catch (err) {
-      Logger.info(err);
-    }
+  try {
+    await sftp.fastGet(pathToLocalFile, pathToRemoteFile);
+    Logger.info('Successfully uploaded');
+  } catch (err) {
+    Logger.info(err);
+  }
 
-    setShellModeToStandart(shell);
-    process.stdin.resume();
-  });
+  process.stdin.resume();
+};
+
+const putFile = async (shell, command) => {
+  const pathToLocalFile = parsePutCommand(command).path;
+  const isFileExist = await fs.pathExists(pathToLocalFile);
+
+  if (!isFileExist) {
+    Logger.info('File not exist');
+    return;
+  }
+
+  process.stdin.pause();
+
+  const directory = await getCurrentDirectory(shell);
+
+  const sftp = await conn.sftp();
+
+  const pathToRemoteFile = `${directory}/${pathToLocalFile.split('/').pop()}`;
+
+  Logger.info(`Download file from ${pathToLocalFile} to ${pathToRemoteFile}`);
+
+  try {
+    await sftp.fastPut(pathToLocalFile, pathToRemoteFile);
+    Logger.info('Successfully downloaded');
+  } catch (err) {
+    Logger.info(err);
+  }
+
+  process.stdin.resume();
 
   shell.write('pwd\n');
 };
@@ -88,6 +124,9 @@ const getFile = async (shell, command) => {
     switch (commandType) {
       case commandTypes.GET_FILE:
         await getFile(shell, command);
+        break;
+      case commandTypes.PUT_FILE:
+        await putFile(shell, command);
         break;
       case commandTypes.SIMPLE:
         shell.write(command);
