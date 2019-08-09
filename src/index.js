@@ -3,6 +3,7 @@ const path = require('path');
 const args = require('yargs').argv;
 const SSH2Promise = require('ssh2-promise');
 const fs = require('fs-extra');
+const sigint = require('sigint').create();
 
 const validateConnectionString = require('./validateConnectionString');
 
@@ -134,5 +135,13 @@ const putFile = async (shell, command) => {
       default:
         throw new Error('Unexepected command');
     }
+  });
+
+  sigint.on('keyboard', () => {
+    shell.write('\x03');
+  });
+
+  sigint.on('kill', () => {
+    shell.write('\x03');
   });
 })();
