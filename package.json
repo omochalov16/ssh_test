@@ -19,8 +19,8 @@
   "homepage": "https://github.com/omochalov16/ssh_test#readme",
   "dependencies": {
     "fs-extra": "^8.1.0",
+    "iohook": "^0.6.1",
     "js-logger": "^1.6.0",
-    "sigint": "^1.0.0",
     "ssh2": "^0.8.5",
     "ssh2-promise": "^0.1.5",
     "yargs": "^13.3.0"
