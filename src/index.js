@@ -221,16 +221,17 @@ let cachedCommand = '';
       return;
     }
 
-    const commandType = commandTypeResolver(cachedCommand);
+    const command = `${cachedCommand.trim().split(' ')[0]} ${stringData.trim().split(' ').pop()}`;
+    const commandType = commandTypeResolver(command);
 
     switch (commandType) {
       case commandTypes.GET_FILE:
         await sendCtrlC(shell);
-        await getFile(shell, cachedCommand);
+        await getFile(shell, command);
         break;
       case commandTypes.PUT_FILE:
         await sendCtrlC(shell);
-        await putFile(shell, cachedCommand);
+        await putFile(shell, command);
         break;
       case commandTypes.SIMPLE:
         shell.write(data);
