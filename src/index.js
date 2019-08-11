@@ -1,14 +1,17 @@
 const args = require('yargs').argv;
 const SSH2Promise = require('ssh2-promise');
 const ioHook = require('iohook');
+const tunnel = require('tunnel-ssh');
 const { resolve: resolvePath } = require('path');
 const { pathExists } = require('fs-extra');
 const { useDefaults: loggerUseDefaults, info } = require('js-logger');
 
 
 const validateConnectionString = require('./validateConnectionString');
+const validateLocalForwardTunnelString = require('./validateLocalForwardTunnelString');
 
 const parseConnectionString = require('./parseConnectionString');
+const parseLocalForwardTunnelString = require('./parseLocalForwardTunnelString');
 const parseGetCommand = require('./parseGetCommand');
 const parsePutCommand = require('./parsePutCommand');
 
@@ -40,6 +43,27 @@ if (!connectionString || !validateConnectionString(connectionString)) {
 const connectionInfo = parseConnectionString(connectionString);
 connectionInfo.port = args.P || DEFAULT_PORT;
 
+let localForwardTunnelServer;
+const localForwardTunnelString = args.L || '';
+if (localForwardTunnelString.length) {
+  if (!validateLocalForwardTunnelString(localForwardTunnelString)) {
+    throw new Error(`Tunnel string has incorrect format,
+                              expected: localAddress:localport:localAddress:localPort,
+                              got: ${localForwardTunnelString}`);
+  }
+
+  let localForwardTunnelInfo = parseLocalForwardTunnelString(localForwardTunnelString);
+  localForwardTunnelInfo = { ...localForwardTunnelInfo, ...connectionInfo };
+
+  localForwardTunnelServer = tunnel(localForwardTunnelInfo, (err) => {
+    if (err) throw (err);
+  });
+
+  localForwardTunnelServer.on('error', (err) => {
+    throw (err);
+  });
+}
+
 loggerUseDefaults();
 
 const conn = new SSH2Promise(connectionInfo);
@@ -55,6 +79,7 @@ const setShellModeToStandart = (shell) => {
 
   shell.on('close', () => {
     info('Stream :: close');
+    if (localForwardTunnelServer) localForwardTunnelServer.close();
     process.exit();
   });
 };
