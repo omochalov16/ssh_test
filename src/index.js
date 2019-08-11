@@ -55,7 +55,6 @@ const setShellModeToStandart = (shell) => {
 
   shell.on('close', () => {
     info('Stream :: close');
-    ioHook.stop();
     process.exit();
   });
 };
@@ -217,4 +216,6 @@ let cachedCommand = '';
 
     cachedCommand = '';
   });
+
+  process.on('exit', () => { ioHook.unload(); ioHook.stop(); });
 })();
